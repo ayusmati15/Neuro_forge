@@ -12,14 +12,22 @@ router.post(
 
         try {
 
-            console.log("BODY:", req.body);
-
-            const architecture = req.body;
+            const architecture =
+                req.body;
 
             const results =
                 await runPythonCompiler(
                     architecture
                 );
+
+            // SOCKET EMIT
+            const io =
+                req.app.get("io");
+
+            io.emit(
+                "neural-profile",
+                results
+            );
 
             res.json(results);
 
