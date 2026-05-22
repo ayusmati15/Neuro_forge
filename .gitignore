@@ -1,0 +1,18 @@
+# Node modules
+node_modules/
+
+# Python virtual env
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Generated runtime files
+generated/dynamic_model.py
+
+# Environment files
+.env
+
+# Logs
+npm-debug.log*
