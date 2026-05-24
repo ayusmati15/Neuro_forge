@@ -4,6 +4,10 @@ import {
     runPythonCompiler
 } from "../services/pythonBridge.js";
 
+import {
+    io
+} from "../server.js";
+
 const router = express.Router();
 
 router.post(
@@ -20,10 +24,7 @@ router.post(
                     architecture
                 );
 
-            // SOCKET EMIT
-            const io =
-                req.app.get("io");
-
+            // REALTIME SOCKET STREAM
             io.emit(
                 "neural-profile",
                 results
@@ -32,6 +33,8 @@ router.post(
             res.json(results);
 
         } catch (err) {
+
+            console.error(err);
 
             res.status(500).json({
                 error: err.message

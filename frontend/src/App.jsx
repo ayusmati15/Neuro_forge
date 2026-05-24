@@ -1,479 +1,349 @@
-import {
-  useEffect,
-  useState,
-  useRef
-} from "react";
+import "./App.css";
 
-import {
-  Canvas,
-  useFrame
-} from "@react-three/fiber";
+import { useState } from "react";
 
-import {
-  OrbitControls,
-  Sphere,
-  Line,
-  Text
-} from "@react-three/drei";
+import NetworkGraph from "./components/NetworkGraph";
 
-import socket from "./socket";
+const activationColors = {
+    Dense: "#ffffff",
+    ReLU: "#ff6b6b",
+    GELU: "#6bcBff",
+    SELU: "#c77dff",
+    ELU: "#ffd93d",
+    Tanh: "#4d96ff",
+    Softmax: "#00c896",
+    Swish: "#ff9f1c",
+    Dropout: "#ff4ecd"
+};
 
-function Pulse({
-  start,
-  end,
-  activity
-}) {
+function App() {
 
-  const ref = useRef();
+    const [layers, setLayers] =
+        useState([]);
 
-  const t = useRef(
-    Math.random()
-  );
+    const [results, setResults] =
+        useState(null);
 
-  useFrame(() => {
+    const [loading, setLoading] =
+        useState(false);
 
-    // DYNAMIC SPEED
-    t.current +=
-      0.005 +
-      activity * 0.03;
+    // -------------------------
+    // ADD LAYER
+    // -------------------------
 
-    if (t.current > 1) {
-      t.current = 0;
-    }
+    const addLayer = (type) => {
 
-    const x =
-      start[0] +
-      (end[0] - start[0]) *
-      t.current;
+        let neurons = 128;
 
-    const y =
-      start[1] +
-      (end[1] - start[1]) *
-      t.current;
+        let rate = 0.5;
 
-    const z =
-      start[2] +
-      (end[2] - start[2]) *
-      t.current;
+        // DENSE
+        if (type === "Dense") {
 
-    ref.current.position.set(
-      x,
-      y,
-      z
-    );
-  });
+            const input =
+                prompt(
+                    "Enter neuron count:"
+                );
 
-  return (
-    <Sphere
-      ref={ref}
-      args={[0.05, 12, 12]}
-    >
-      <meshStandardMaterial
-        color="orange"
-        emissive="orange"
-        emissiveIntensity={
-          2 + activity * 8
+            neurons =
+                Number(input) || 128;
         }
-      />
-    </Sphere>
-  );
-}
 
-function NeuralCluster({
-  layer,
-  position
-}) {
+        // DROPOUT
+        if (type === "Dropout") {
 
-  const neuronCount =
-    Math.min(
-      10,
-      Math.max(
-        3,
-        Math.floor(
-          layer.parameters / 20000
-        )
-      )
-    );
+            const input =
+                prompt(
+                    "Enter dropout rate (0-1):"
+                );
 
-  const glow =
-    Math.max(
-      1,
-      layer.flops / 100000
-    );
+            rate =
+                Number(input) || 0.5;
+        }
 
-  // CREATE VISUAL NEURONS
-  const neurons =
-    [...Array(neuronCount)]
-      .map((_, idx) => {
+        setLayers((prev) => [
 
-        const offsetY =
-          idx * 0.45 -
-          neuronCount * 0.22;
+            ...prev,
 
-        return [
-          position[0],
-          position[1] + offsetY,
-          position[2]
-        ];
-      });
-
-  return (
-    <group>
-
-      {/* NEURONS */}
-
-      {
-        neurons.map(
-          (pos, idx) => (
-
-            <Sphere
-              key={idx}
-              args={[0.16, 24, 24]}
-              position={pos}
-            >
-              <meshStandardMaterial
-                color="cyan"
-                emissive="cyan"
-                emissiveIntensity={glow}
-              />
-            </Sphere>
-          )
-        )
-      }
-
-      {/* LAYER LABEL */}
-
-      <Text
-        position={[
-          position[0],
-          position[1] + 1.7,
-          position[2]
-        ]}
-        fontSize={0.22}
-        color="white"
-      >
-        {layer.layer_type}
-      </Text>
-
-      {/* PARAM COUNT */}
-
-      <Text
-        position={[
-          position[0],
-          position[1] - 1.7,
-          position[2]
-        ]}
-        fontSize={0.15}
-        color="orange"
-      >
-        {layer.parameters} params
-      </Text>
-
-    </group>
-  );
-}
-
-function DenseConnections({
-  startLayer,
-  endLayer,
-  activity
-}) {
-
-  const startCount =
-    Math.min(
-      10,
-      Math.max(
-        3,
-        Math.floor(
-          startLayer.parameters / 20000
-        )
-      )
-    );
-
-  const endCount =
-    Math.min(
-      10,
-      Math.max(
-        3,
-        Math.floor(
-          endLayer.parameters / 20000
-        )
-      )
-    );
-
-  const connections = [];
-
-  // CREATE EVERY CONNECTION
-  for (
-    let i = 0;
-    i < startCount;
-    i++
-  ) {
-
-    for (
-      let j = 0;
-      j < endCount;
-      j++
-    ) {
-
-      const start = [
-        startLayer.position[0],
-        startLayer.position[1]
-          + i * 0.45
-          - startCount * 0.22,
-        0
-      ];
-
-      const end = [
-        endLayer.position[0],
-        endLayer.position[1]
-          + j * 0.45
-          - endCount * 0.22,
-        0
-      ];
-
-      connections.push({
-        start,
-        end
-      });
-    }
-  }
-
-  return (
-    <group>
-
-      {
-        connections.map(
-          (conn, idx) => (
-
-            <group key={idx}>
-
-              <Line
-                points={[
-                  conn.start,
-                  conn.end
-                ]}
-                color="white"
-                lineWidth={1}
-              />
-
-              <Pulse
-                start={conn.start}
-                end={conn.end}
-                activity={activity}
-              />
-
-            </group>
-          )
-        )
-      }
-
-    </group>
-  );
-}
-
-export default function App() {
-
-  const [layers, setLayers] =
-    useState([]);
-
-  const [trainingData,
-    setTrainingData] =
-    useState({
-      epoch: 0,
-      loss: 0,
-      activity: 0
-    });
-
-  useEffect(() => {
-
-    // MODEL PROFILE
-    socket.on(
-      "neural-profile",
-      (data) => {
-
-        console.log(
-          "Telemetry:",
-          data
-        );
-
-        setLayers(
-          data.layers
-        );
-      }
-    );
-
-    // TRAINING STREAM
-    socket.on(
-      "training-update",
-      (data) => {
-
-        console.log(
-          "Training:",
-          data
-        );
-
-        setTrainingData(data);
-      }
-    );
-
-    return () => {
-
-      socket.off(
-        "neural-profile"
-      );
-
-      socket.off(
-        "training-update"
-      );
+            {
+                type,
+                neurons,
+                rate
+            }
+        ]);
     };
 
-  }, []);
+    // -------------------------
+    // COMPILE MODEL
+    // -------------------------
 
-  // POSITION LAYERS
-  const positionedLayers =
-    layers.map(
-      (layer, idx) => {
+    const compileModel = async () => {
 
-        const x =
-          idx * 4 -
-          (
-            (layers.length - 1)
-            * 2
-          );
+        setLoading(true);
 
-        let y = 0;
+        try {
 
-        if (
-          layer.layer_type ===
-          "ReLU"
-        ) {
-          y = 1.5;
+            const response =
+                await fetch(
+                    "http://localhost:5000/api/compile-model",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            layers
+                        })
+                    }
+                );
+
+            const data =
+                await response.json();
+
+            setResults(data);
+
+        } catch (err) {
+
+            console.error(err);
+
+        } finally {
+
+            setLoading(false);
         }
+    };
 
-        if (
-          layer.layer_type ===
-          "Sigmoid"
-        ) {
-          y = -1.5;
-        }
+    return (
 
-        return {
-          ...layer,
-          position: [x, y, 0]
-        };
-      }
-    );
+        <div className="container">
 
-  return (
+            <h1>
+                NeuroForge
+            </h1>
 
-    <div
-      style={{
-        width: "100vw",
-        height: "100vh",
-        background: "black"
-      }}
-    >
+            {/* ------------------ */}
+            {/* CONTROLS */}
+            {/* ------------------ */}
 
-      <Canvas
-        camera={{
-          position: [0, 0, 16]
-        }}
-      >
+            <div className="controls">
 
-        <ambientLight intensity={0.5} />
+                <button
+                    onClick={() =>
+                        addLayer("Dense")
+                    }
+                >
+                    Dense
+                </button>
 
-        <pointLight
-          position={[10, 10, 10]}
-        />
+                <button
+                    onClick={() =>
+                        addLayer("ReLU")
+                    }
+                >
+                    ReLU
+                </button>
 
-        {/* TRAINING HUD */}
+                <button
+                    onClick={() =>
+                        addLayer("GELU")
+                    }
+                >
+                    GELU
+                </button>
 
-        <Text
-          position={[-6, 5, 0]}
-          fontSize={0.3}
-          color="lime"
-        >
-          Epoch: {
-            trainingData.epoch
-          }
-        </Text>
+                <button
+                    onClick={() =>
+                        addLayer("SELU")
+                    }
+                >
+                    SELU
+                </button>
 
-        <Text
-          position={[-6, 4.5, 0]}
-          fontSize={0.3}
-          color="orange"
-        >
-          Loss: {
-            trainingData.loss
-          }
-        </Text>
+                <button
+                    onClick={() =>
+                        addLayer("ELU")
+                    }
+                >
+                    ELU
+                </button>
 
-        <Text
-          position={[-6, 4, 0]}
-          fontSize={0.3}
-          color="cyan"
-        >
-          Activity: {
-            trainingData.activity
-          }
-        </Text>
+                <button
+                    onClick={() =>
+                        addLayer("Tanh")
+                    }
+                >
+                    Tanh
+                </button>
 
-        {/* NEURAL CLUSTERS */}
+                <button
+                    onClick={() =>
+                        addLayer("Softmax")
+                    }
+                >
+                    Softmax
+                </button>
 
-        {
-          positionedLayers.map(
-            (layer, idx) => (
+                <button
+                    onClick={() =>
+                        addLayer("Swish")
+                    }
+                >
+                    Swish
+                </button>
 
-              <NeuralCluster
-                key={idx}
-                layer={layer}
-                position={
-                  layer.position
-                }
-              />
-            )
-          )
-        }
+                <button
+                    onClick={() =>
+                        addLayer("Dropout")
+                    }
+                >
+                    Dropout
+                </button>
 
-        {/* TRUE DENSE CONNECTIONS */}
+                <button
+                    className="compile-btn"
+                    onClick={compileModel}
+                >
+                    {
+                        loading
+                            ? "Compiling..."
+                            : "Compile Model"
+                    }
+                </button>
+            </div>
 
-        {
-          positionedLayers.map(
-            (_, idx) => {
+            {/* ------------------ */}
+            {/* GRAPH */}
+            {/* ------------------ */}
 
-              if (
-                idx ===
-                positionedLayers.length - 1
-              ) {
-                return null;
-              }
+            <NetworkGraph
+                layers={layers}
+            />
 
-              return (
+            {/* ------------------ */}
+            {/* VISUALIZATION */}
+            {/* ------------------ */}
 
-                <DenseConnections
-                  key={idx}
-                  startLayer={
-                    positionedLayers[idx]
-                  }
-                  endLayer={
-                    positionedLayers[idx + 1]
-                  }
-                  activity={
-                    Number(
-                      trainingData.activity
+            <div className="visualization">
+
+                {
+                    layers.map(
+                        (
+                            layer,
+                            index
+                        ) => {
+
+                            const color =
+                                activationColors[
+                                    layer.type
+                                ] || "#ffffff";
+
+                            return (
+
+                                <div
+                                    key={index}
+                                    className="layer-card"
+                                    style={{
+
+                                        border:
+                                            `2px solid ${color}`,
+
+                                        boxShadow:
+                                            `0px 0px 25px ${color}`,
+
+                                        background:
+                                            `linear-gradient(
+                                                145deg,
+                                                ${color}22,
+                                                #111
+                                            )`
+                                    }}
+                                >
+
+                                    <h2>
+                                        {
+                                            layer.type
+                                        }
+                                    </h2>
+
+                                    {
+                                        layer.neurons &&
+                                        layer.type === "Dense" && (
+
+                                            <p>
+                                                Neurons:
+                                                {" "}
+                                                {
+                                                    layer.neurons
+                                                }
+                                            </p>
+                                        )
+                                    }
+
+                                    {
+                                        results?.layers?.[index]
+                                            ?.output_shape && (
+
+                                            <p>
+                                                Shape:
+                                                {" "}
+                                                [
+                                                {
+                                                    results
+                                                        .layers[index]
+                                                        .output_shape
+                                                        .join(", ")
+                                                }
+                                                ]
+                                            </p>
+                                        )
+                                    }
+
+                                    {
+                                        layer.rate !== undefined &&
+                                        layer.type === "Dropout" && (
+
+                                            <p>
+                                                Dropout:
+                                                {" "}
+                                                {
+                                                    layer.rate
+                                                }
+                                            </p>
+                                        )
+                                    }
+
+                                </div>
+                            );
+                        }
                     )
-                  }
-                />
-              );
-            }
-          )
-        }
+                }
 
-        <OrbitControls />
+            </div>
 
-      </Canvas>
+            {/* ------------------ */}
+            {/* RESULTS */}
+            {/* ------------------ */}
 
-    </div>
-  );
+            <div className="results">
+
+                <h2>
+                    Compilation Results
+                </h2>
+
+              <pre>
+
+                {
+                   results?.generated_code
+                }
+
+              </pre>
+
+            </div>
+
+        </div>
+    );
 }
+
+export default App;
